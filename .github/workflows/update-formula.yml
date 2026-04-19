@@ -1,0 +1,58 @@
+name: Update Formula
+
+on:
+  workflow_call:
+    inputs:
+      formula:
+        description: Formula name (without .rb extension)
+        required: true
+        type: string
+      version:
+        description: New version string (without v prefix)
+        required: true
+        type: string
+      url:
+        description: Tarball URL for the new release
+        required: true
+        type: string
+      sha256:
+        description: SHA256 checksum of the tarball
+        required: true
+        type: string
+    secrets:
+      tap_token:
+        description: GitHub token with write access to this tap repository
+        required: true
+
+jobs:
+  update:
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: fabiomontefuscolo/homebrew-tools
+          token: ${{ secrets.tap_token }}
+
+      - name: Update formula
+        env:
+          FORMULA: ${{ inputs.formula }}
+          VERSION: ${{ inputs.version }}
+          URL: ${{ inputs.url }}
+          SHA256: ${{ inputs.sha256 }}
+        run: |
+          FILE="Formula/${FORMULA}.rb"
+          sed -i "s|url \".*\"|url \"${URL}\"|" "$FILE"
+          sed -i "s|sha256 \".*\"|sha256 \"${SHA256}\"|" "$FILE"
+          sed -i "s|version \".*\"|version \"${VERSION}\"|" "$FILE"
+
+      - name: Commit and push
+        env:
+          FORMULA: ${{ inputs.formula }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "Formula/${FORMULA}.rb"
+          git diff --cached --quiet || git commit -m "chore: bump ${FORMULA} to ${VERSION}"
+          git push
